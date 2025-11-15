@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mic, Send, User, Bot } from "lucide-react";
+import { Mic, Send, User, Bot, Volume2, VolumeX } from "lucide-react";
 import type { ChatMessage } from "@shared/schema";
 
 export default function ChatPage() {
@@ -17,7 +17,10 @@ export default function ChatPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [message, setMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -42,9 +45,16 @@ export default function ChatPage() {
     mutationFn: async (content: string) => {
       return await apiRequest("POST", "/api/chat/send", { content });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
       setMessage("");
+      
+      // Auto-speak AI response
+      if (data.assistantMessage?.content) {
+        setTimeout(() => {
+          speakText(data.assistantMessage.content, data.assistantMessage.id);
+        }, 300);
+      }
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -85,11 +95,20 @@ export default function ChatPage() {
       return;
     }
 
+    // Stop any ongoing speech
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
 
     recognition.continuous = false;
     recognition.interimResults = false;
+    recognition.lang = 'en-US';
 
     recognition.onstart = () => {
       setIsListening(true);
@@ -99,6 +118,13 @@ export default function ChatPage() {
       const transcript = event.results[0][0].transcript;
       setMessage(transcript);
       setIsListening(false);
+      
+      // Auto-send after voice input
+      if (transcript.trim()) {
+        setTimeout(() => {
+          sendMutation.mutate(transcript);
+        }, 500);
+      }
     };
 
     recognition.onerror = () => {
@@ -116,6 +142,65 @@ export default function ChatPage() {
 
     recognition.start();
   };
+
+  const speakText = (text: string, messageId: string) => {
+    if (!('speechSynthesis' in window)) {
+      toast({
+        title: "Not supported",
+        description: "Voice output is not supported in your browser.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Stop current speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.lang = 'en-US';
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setSpeakingMessageId(messageId);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleSpeech = (text: string, messageId: string) => {
+    if (isSpeaking && speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    } else {
+      speakText(text, messageId);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   if (authLoading || isLoading) {
     return <div className="flex-1 p-8">Loading...</div>;
@@ -195,17 +280,40 @@ export default function ChatPage() {
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    <div
-                      className={`rounded-md px-4 py-3 max-w-[70%] ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      <p className="text-xs opacity-70 mt-2">
-                        {new Date(msg.createdAt!).toLocaleTimeString()}
-                      </p>
+                    <div className="flex flex-col gap-2 max-w-[70%]">
+                      <div
+                        className={`rounded-md px-4 py-3 ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <p className="text-xs opacity-70 mt-2">
+                          {new Date(msg.createdAt!).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {msg.role === 'assistant' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleSpeech(msg.content, msg.id)}
+                          className="w-fit"
+                          data-testid={`button-speak-${msg.id}`}
+                        >
+                          {isSpeaking && speakingMessageId === msg.id ? (
+                            <>
+                              <VolumeX className="h-3 w-3 mr-1" />
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="h-3 w-3 mr-1" />
+                              Listen
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}

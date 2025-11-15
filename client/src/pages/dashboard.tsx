@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -14,6 +15,7 @@ import type { Company, Founder, Document } from "@shared/schema";
 
 export default function Dashboard() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button size="lg" onClick={() => window.location.href = "/create-company"} data-testid="button-create-company" className="w-full">
+            <Button size="lg" onClick={() => setLocation("/create-company")} data-testid="button-create-company" className="w-full">
               <Plus className="h-4 w-4 mr-2" />
               Create Company
             </Button>
@@ -109,7 +111,7 @@ export default function Dashboard() {
             {company.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS'}
           </p>
         </div>
-        <Button onClick={() => window.location.href = "/chat"} data-testid="button-ask-ai">
+        <Button onClick={() => setLocation("/chat")} data-testid="button-ask-ai">
           Ask AI Assistant
         </Button>
       </div>

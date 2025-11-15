@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { requireAuth } from "./replitAuth";
 import { insertCompanySchema, insertFounderSchema, insertInvestorSchema, insertDocumentSchema, insertTaskSchema, insertDocumentSignatureSchema, insertCapTableEntrySchema } from "@shared/schema";
 import { qdrantService } from "./services/qdrant";
-import { openaiService } from "./services/openai";
+import { geminiService } from "./services/gemini";
 import { emailService } from "./services/email";
 
 // Helper to get authenticated user
@@ -154,7 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const investor = await storage.createInvestor(data);
       
       // Generate SAFE document
-      const safeContent = await openaiService.draftDocument(
+      const safeContent = await geminiService.draftDocument(
         'SAFE',
         company,
         { investor: data, amount: data.amount }
@@ -280,7 +280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
       
-      const validation = await openaiService.validateDocument(
+      const validation = await geminiService.validateDocument(
         document.type,
         document.content || ''
       );
@@ -560,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate AI response
       const companyContext = `Company: ${company.name}, Jurisdiction: ${company.jurisdiction}`;
-      const aiResponse = await openaiService.answerQuestion(content, companyContext, contextStrings);
+      const aiResponse = await geminiService.answerQuestion(content, companyContext, contextStrings);
       
       // Save AI response
       const assistantMessage = await storage.createChatMessage({
@@ -573,6 +573,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await qdrantService.storeChatMessage(company.id, assistantMessage.id, aiResponse, 'assistant');
       
       res.json({ userMessage, assistantMessage });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Extract company data from conversation (for voice-driven form filling)
+  app.post("/api/chat/extract-company", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { conversation } = req.body;
+      
+      if (!conversation) {
+        return res.status(400).json({ message: "Conversation is required" });
+      }
+      
+      const companyData = await geminiService.extractCompanyData(conversation);
+      res.json(companyData);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
