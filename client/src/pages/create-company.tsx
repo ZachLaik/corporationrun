@@ -39,6 +39,7 @@ export default function CreateCompany() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [conversation, setConversation] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [wasVoiceCreated, setWasVoiceCreated] = useState(false); // Track if company was voice-created
   const MAX_RETRIES = 3;
   const recognitionRef = useRef<any>(null);
 
@@ -62,9 +63,21 @@ export default function CreateCompany() {
         title: "Success!",
         description: "Your company has been created successfully.",
       });
-      setLocation("/dashboard");
+      
+      // If created via voice, guide to cofounder invitation flow
+      if (wasVoiceCreated) {
+        setTimeout(() => {
+          setLocation("/founders");
+        }, 1000);
+      } else {
+        setLocation("/dashboard");
+      }
     },
     onError: (error: Error) => {
+      // Reset voice flag on error so manual retry goes to dashboard
+      setWasVoiceCreated(false);
+      setUseVoiceMode(false);
+      
       toast({
         title: "Error",
         description: error.message,
@@ -124,18 +137,36 @@ export default function CreateCompany() {
         const response: ExtractCompanyResponse = await res.json();
         
         if (response && response.name) {
-          // Success! Prefill form
+          // Success! Prefill form and auto-submit
           form.setValue("name", response.name);
           form.setValue("description", response.description ?? "");
           form.setValue("jurisdiction", response.jurisdiction ?? "delaware");
           
-          speakText(`Great! I've set up ${response.name} as a ${response.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS'}. Let me show you the details.`);
+          const jurisdictionName = response.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS';
+          speakText(`Perfect! I'm creating ${response.name} as a ${jurisdictionName}. Next, we'll invite your cofounders to sign the incorporation documents.`);
           
-          setTimeout(() => {
-            setStep(2);
-            setUseVoiceMode(false);
-            setRetryCount(0);
-          }, 3000);
+          // Set flag to track voice-driven creation
+          setWasVoiceCreated(true);
+          
+          // Auto-submit the form after 2 seconds
+          setTimeout(async () => {
+            try {
+              await form.handleSubmit((data) => {
+                createMutation.mutate(data);
+              })();
+            } catch (error) {
+              console.error("Auto-submit error:", error);
+              // Fallback: show form for manual submission
+              setStep(2);
+              setUseVoiceMode(false);
+              setRetryCount(0);
+              setWasVoiceCreated(false);
+              toast({
+                title: "Please review",
+                description: "Review the details and click Create Company.",
+              });
+            }
+          }, 2000);
         } else {
           // Extraction failed, retry if we have attempts left
           const newRetryCount = currentRetry + 1;
