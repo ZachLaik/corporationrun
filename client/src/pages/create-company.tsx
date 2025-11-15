@@ -38,6 +38,7 @@ export default function CreateCompany() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [conversation, setConversation] = useState("");
+  const [liveTranscript, setLiveTranscript] = useState(""); // Real-time partial results
   const [retryCount, setRetryCount] = useState(0);
   const [wasVoiceCreated, setWasVoiceCreated] = useState(false); // Track if company was voice-created
   const MAX_RETRIES = 3;
@@ -119,14 +120,35 @@ export default function CreateCompany() {
     recognitionRef.current = recognition;
 
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // Enable real-time interim results
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => setIsListening(true);
+    recognition.onstart = () => {
+      setIsListening(true);
+      setLiveTranscript(""); // Clear previous transcript
+    };
 
     recognition.onresult = async (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setConversation(transcript);
+      // Build transcript from all results
+      let interimTranscript = '';
+      let finalTranscript = '';
+      
+      for (let i = 0; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      
+      // Update live transcript display
+      setLiveTranscript(finalTranscript + interimTranscript);
+      
+      // Only process when we have final results
+      if (!finalTranscript) return;
+      
+      setConversation(finalTranscript.trim());
       setIsListening(false);
       
       // Extract company data using AI
@@ -342,7 +364,13 @@ export default function CreateCompany() {
                   {isListening ? "I'm listening..." : isSpeaking ? "Speaking..." : "Voice Mode Active"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {conversation || "Waiting for your response..."}
+                  {isListening && liveTranscript ? (
+                    <span className="text-foreground italic">{liveTranscript}</span>
+                  ) : conversation ? (
+                    conversation
+                  ) : (
+                    "Waiting for your response..."
+                  )}
                 </p>
               </div>
               <Button

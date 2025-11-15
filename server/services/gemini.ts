@@ -288,6 +288,119 @@ If jurisdiction is not clear, default to Delaware. Return JSON with exact fields
       return null;
     }
   }
+
+  async extractEntities(conversation: string): Promise<{
+    company: { name: string; description: string; jurisdiction: 'delaware' | 'france' };
+    founders: Array<{ email: string; firstName: string; lastName: string; role: string; equityPercentage: number }>;
+    investors: Array<{ name: string; email: string; amount: number }>;
+  } | null> {
+    await this.ensureInitialized();
+    if (!this.ai) {
+      return null;
+    }
+
+    try {
+      const prompt = `Extract all startup formation details from this conversation:
+
+${conversation}
+
+Extract:
+1. Company information:
+   - Company name
+   - Brief description/purpose
+   - Jurisdiction (Delaware C-Corp or France SAS)
+
+2. Founders (co-founders):
+   - Email address  
+   - First name and last name
+   - Role/title (CEO, CTO, etc.)
+   - Equity percentage
+
+3. Investors (if mentioned):
+   - Name
+   - Email (if mentioned, otherwise generate professional email from name)
+   - Investment amount
+
+If jurisdiction is not clear, default to Delaware.
+If equity percentages aren't specified, distribute evenly among founders.
+Return empty arrays if no founders or investors are mentioned.`;
+
+      const response = await pRetry(
+        async () => {
+          try {
+            const result = await this.ai!.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                    company: {
+                      type: Type.OBJECT,
+                      properties: {
+                        name: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        jurisdiction: {
+                          type: Type.STRING,
+                          enum: ['delaware', 'france']
+                        }
+                      },
+                      required: ["name", "description", "jurisdiction"]
+                    },
+                    founders: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          email: { type: Type.STRING },
+                          firstName: { type: Type.STRING },
+                          lastName: { type: Type.STRING },
+                          role: { type: Type.STRING },
+                          equityPercentage: { type: Type.NUMBER }
+                        },
+                        required: ["email", "firstName", "lastName", "role", "equityPercentage"]
+                      }
+                    },
+                    investors: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING },
+                          email: { type: Type.STRING },
+                          amount: { type: Type.NUMBER }
+                        },
+                        required: ["name", "email", "amount"]
+                      }
+                    }
+                  },
+                  required: ["company", "founders", "investors"]
+                }
+              }
+            });
+            return JSON.parse(result.text || 'null');
+          } catch (error: any) {
+            if (this.isRateLimitError(error)) {
+              throw error;
+            }
+            throw new pRetry.AbortError(error);
+          }
+        },
+        {
+          retries: 7,
+          minTimeout: 2000,
+          maxTimeout: 128000,
+          factor: 2,
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error("Gemini extractEntities error:", error);
+      return null;
+    }
+  }
 }
 
 export const geminiService = new GeminiService();
