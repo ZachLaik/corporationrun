@@ -15,11 +15,19 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Building2, Flag, Mic, Volume2, VolumeX, Sparkles } from "lucide-react";
 import { insertCompanySchema } from "@shared/schema";
 
-const formSchema = insertCompanySchema.extend({
+const formSchema = insertCompanySchema.omit({
+  userId: true, // Backend adds userId automatically from session
+}).extend({
   jurisdiction: z.enum(['delaware', 'france']),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+type ExtractCompanyResponse = {
+  name?: string;
+  description?: string | null;
+  jurisdiction?: 'delaware' | 'france';
+};
 
 export default function CreateCompany() {
   const { toast } = useToast();
@@ -38,9 +46,10 @@ export default function CreateCompany() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      description: "",
+      description: "" as string, // Ensure description is always string, never null
       jurisdiction: "delaware",
     },
+    shouldUnregister: false, // Preserve field values when fields are unmounted between steps
   });
 
   const createMutation = useMutation({
@@ -65,7 +74,13 @@ export default function CreateCompany() {
   });
 
   const onSubmit = (data: FormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
     createMutation.mutate(data);
+  };
+
+  const onInvalid = (errors: any) => {
+    console.log("Form validation failed:", errors);
   };
 
   const speakText = (text: string) => {
@@ -103,15 +118,16 @@ export default function CreateCompany() {
       
       // Extract company data using AI
       try {
-        const response = await apiRequest("POST", "/api/chat/extract-company", {
+        const res = await apiRequest("POST", "/api/chat/extract-company", {
           conversation: transcript
         });
+        const response: ExtractCompanyResponse = await res.json();
         
         if (response && response.name) {
           // Success! Prefill form
           form.setValue("name", response.name);
-          form.setValue("description", response.description || "");
-          form.setValue("jurisdiction", response.jurisdiction || "delaware");
+          form.setValue("description", response.description ?? "");
+          form.setValue("jurisdiction", response.jurisdiction ?? "delaware");
           
           speakText(`Great! I've set up ${response.name} as a ${response.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS'}. Let me show you the details.`);
           
@@ -316,7 +332,7 @@ export default function CreateCompany() {
             </div>
           )}
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
               {step === 1 && !useVoiceMode && (
                 <FormField
                   control={form.control}
@@ -413,7 +429,7 @@ export default function CreateCompany() {
                             placeholder="What does your company do?"
                             className="resize-none"
                             {...field}
-                            value={field.value || ""}
+                            value={field.value ?? ""}
                             data-testid="input-company-description"
                           />
                         </FormControl>
