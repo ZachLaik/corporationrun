@@ -154,6 +154,12 @@ export default function CreateCompany() {
   };
 
   const startListening = (currentRetry: number) => {
+    // Prevent STT from starting when TTS is running
+    if (isSpeaking) {
+      console.log("Cannot start listening while AI is speaking");
+      return;
+    }
+    
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     // Create fresh recognition instance for each attempt
