@@ -1,0 +1,474 @@
+Mission
+
+To make forming and organizing a startup as intuitive, conversational, and delightful as playing a cooperative game — while ensuring every legal step is handled professionally, transparently, and with best-practice templates.
+
+Intent
+
+User should always know what the company knows, what is missing, and what is recommended next.
+
+The AI should behave like a super-friendly, elite startup lawyer.
+
+Every document should go through the same intuitive process:
+Draft → Validate → Sign → Activate → Remember.
+
+Founders and investors sign via email & magic-link e-signatures.
+
+Once signed, a document becomes a legal memory of the startup.
+
+The system should make founders feel:
+“I understand what’s going on.”
+“Everything is under control.”
+“This is fun.”
+
+⭐ 2. PRODUCT LAYOUT & NAVIGATION
+
+After initial startup creation, the user can freely navigate between:
+
+1. Overview
+
+Founder cards (status: missing email → invited → signed)
+
+Company health meter
+
+Summary of existing signed docs
+
+"Jurisdiction" selector + tax comparison
+
+AI voice input (“Ask your company anything”)
+
+2. Founders
+
+Add founders
+
+Assign roles
+
+Proposed equity or vesting
+
+Status of ID upload & signatures
+
+Send reminders
+
+AI suggestions (“Founder C hasn’t signed NDA yet.”)
+
+3. Contracts Library
+
+DO NOT force order.
+User can open any template anytime.
+
+Categories:
+
+Pre-Startup
+
+NDA (Mutual)
+
+Pre-Founder Agreement
+
+IP Assignment
+
+Advisor Agreement
+
+Role Definition Sheets
+
+Website & Marketing
+
+Terms & Conditions
+
+Privacy Policy
+
+Influencer Agreement
+
+Work & Collaboration
+
+Contractor Agreement
+
+Employment Agreement (future)
+
+Raising Money
+
+SAFE (simple agreement for future equity)
+
+Incorporation Packs
+
+User chooses:
+
+Delaware C-Corp pack
+
+France SAS pack
+
+Entering a pack opens the corresponding Incorporation Document Agents:
+
+Certificate of Incorporation (DE) / Statuts (FR)
+
+Bylaws / Règlement intérieur
+
+First Board Consent
+
+Share issuance
+
+Beneficial owner declarations (optional)
+
+4. Investors
+
+Add investors
+
+Draft SAFE
+
+Send SAFE for signature
+
+Track signing & payment
+
+Cap table updates
+
+5. Incorporation
+
+User chooses jurisdiction (France vs Delaware)
+
+Corresponding incorporation docs appear
+
+Explain tax differences & implications
+
+Draft → Validate → Sign → Store
+
+Optional: paywall or “coming soon”
+
+6. Tasks
+
+Doc-specific tasks (“Alice must sign IP Assignment”)
+
+Jurisdiction-specific tasks
+
+KYC ID uploads
+
+“X still missing before incorporation is possible”
+
+7. Chat (Voice + Text)
+
+Ask: “Show me our NDA.”
+
+Ask: “What tax rate applies in France?”
+
+Ask: “What happens if a founder quits?”
+
+AI retrieves from Qdrant memory + DB and answers.
+
+Always offers contextual recommendations.
+
+⭐ 3. DOCUMENT FLOW (UNIVERSAL PIPELINE)
+
+Every document follows the same predictable lifecycle:
+
+STEP 1 — Drafting
+
+Triggered by:
+
+User request (“Draft an NDA”)
+
+AI suggestion (“You should create a Pre-Founder Agreement now”)
+
+DocumentAgent for that type:
+
+Loads its template(s)
+
+Extracts data from company state
+
+Asks for missing details via voice or UI forms
+
+Produces the draft
+
+UI shows a Document Card:
+
+Title
+
+Status: Drafting
+
+“Open draft”
+
+“Explain this”
+
+STEP 2 — Validation
+
+AI runs:
+
+Mandatory checks
+
+Missing fields
+
+Role consistency
+
+IP consistency
+
+Investor details sanity
+
+Optional jurisdiction warnings
+
+UI shows:
+
+Validation checklist
+
+Highlighted fields to complete
+
+Summary in plain English
+
+User approves → Move to Signing.
+
+STEP 3 — Signing (Email e-signature + ID upload)
+
+User enters signer emails (if not known).
+
+System sends:
+
+Signature link
+
+ID upload request
+
+Summary of obligations
+
+UI updates status:
+
+Grey: pending invitation
+
+Yellow: signature requested
+
+Green: signed
+
+Real-time updates appear on screen.
+
+STEP 4 — Activation
+
+Once all required signatures are complete:
+
+Document becomes Active
+
+Turns Green in library
+
+Cannot be edited
+
+Agent calls post_activation_hook:
+
+Pre-Founder Agreement → update roles, vesting
+
+NDA → mark confidentiality allowed
+
+IP Assignment → set IP status to “clean”
+
+SAFE → update cap table + investor state
+
+Incorporation docs → set company status to “incorporated”
+
+STEP 5 — Remembering (Qdrant semantic memory)
+
+System:
+
+Chunks final document
+
+Embeds into Qdrant
+
+Stores metadata:
+
+doc_id
+
+doc_type
+
+company_id
+
+section headings
+
+Generates fact summary + stores in memory
+
+These become queryable when user asks questions.
+
+Examples:
+
+“What’s our vesting schedule?”
+AI retrieves vesting clauses.
+
+“Who owns IP?”
+AI retrieves IPAssignment facts.
+
+⭐ 4. SPECIALIZED AGENTS (One Per Document Type)
+
+Each DocumentAgent contains:
+
+doc_type
+
+Templates
+
+Required fields
+
+Validation rules
+
+Drafting prompt
+
+Summarization prompt
+
+Post-activation logic
+
+Examples:
+
+NDAAgent
+
+Required: Parties, effective date
+
+Post-activation: allow sharing confidential info
+
+PreFounderAgent
+
+Required: founder list, roles, vesting, commitments
+
+Post-activation: update founder state
+
+IPAssignmentAgent
+
+Required: assignor, IP scope
+
+Post-activation: set company IP to “clean”
+
+SAFEAgent
+
+Required: amount, cap, discount, investor
+
+Post-activation: update cap table
+
+IncorporationAgent (Delaware / France)
+
+For Delaware:
+
+Certificate of Incorporation
+
+Bylaws
+
+First Board Consent
+
+Share Issuance
+
+For France:
+
+Statuts
+
+Registre des bénéficiaires effectifs
+
+Décision du Président
+
+Registre des mouvements de titres
+
+Each is its own agent with templates + validation.
+
+⭐ 5. MULTI-JURISDICTION SUPPORT
+
+User can choose:
+
+🇺🇸 Delaware C-Corp
+
+Lower corporate tax (21%)
+
+Startup/investor-friendly
+
+Default for most VC-backed companies
+
+Documents auto-load DE templates.
+
+🇫🇷 France SAS
+
+Flexible governance
+
+Great for French founders
+
+Can hire employees easily
+
+Standard for EU-based startups
+
+Documents auto-load FR templates.
+
+The AI explains differences in simple language.
+
+⭐ 6. MEMORY & STATE ARCHITECTURE
+Relational DB = Structured truth
+
+Stores:
+
+Founders
+
+Investors
+
+Documents
+
+Tasks
+
+Equity plan
+
+Jurisdiction
+
+Incorporation status
+
+Qdrant = Semantic memory
+
+Stores:
+
+Past chat messages
+
+Document chunks
+
+Summaries of activation events
+
+AI always reconstructs context using:
+
+DB
+
+Qdrant memories
+
+System prompts
+
+Specialized agent prompts
+
+⭐ 7. WHAT MAKES THIS SUPER USER-FRIENDLY
+💬 Voice-first everything
+
+Creating a doc
+
+Filling missing info
+
+Asking for advice
+
+Triggering actions
+
+Navigating between areas (“Open the Incorporation tab”)
+
+🎨 Consistent Document Pipeline
+
+Same flow for NDA, SAFE, incorporation docs → users never get confused.
+
+🟩 Green means done
+
+Visually clean: every signed doc turns green and locks in state.
+
+📚 Intuitive Contract Library
+
+All documents grouped in plain categories — no clutter.
+
+🧠 Ask your company anything
+
+Because memory stores everything, users can ask:
+
+“Who signed what?”
+
+“Which IP is assigned?”
+
+“What do we need to incorporate in France?”
+
+“Have investors signed?”
+
+🔄 Free navigation
+
+No rigid phases. Just “Your company has these recommended actions” + free exploration.
+
+🧩 Modular agents
+
+Impossible to get lost because each document’s flow is consistent and self-contained.
+
+⭐ 8. TL;DR (the elevator pitch for the product)
+
+incorporate.run is a voice-first legal OS where each legal document is handled by a specialized AI agent.
+Users create a startup, then freely navigate contract templates, investor setup, and incorporation packs.
+Each document flows through Draft → Validate → Sign → Activate → Remember.
+Signatures are done by email; signed documents become part of the company memory.
+France and Delaware are fully supported jurisdictions.
