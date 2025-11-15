@@ -83,9 +83,20 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
+        sans: ["Inter", "var(--font-sans)", "system-ui", "sans-serif"],
         serif: ["var(--font-serif)"],
-        mono: ["var(--font-mono)"],
+        mono: ["JetBrains Mono", "SF Mono", "var(--font-mono)", "monospace"],
+      },
+      fontSize: {
+        'legal': '0.75rem', // 12px for legal fine print
+        'label': '0.8125rem', // 13px for labels/meta
+        'body': '0.9375rem', // 15px for body text
+        'card-title': '1.125rem', // 18px for card titles
+        'section': '1.5rem', // 24px for section headers
+        'page': '2rem', // 32px for page titles
+      },
+      lineHeight: {
+        'legal': '1.6',
       },
       keyframes: {
         "accordion-down": {
