@@ -70,7 +70,7 @@ export default function Dashboard() {
                 <Building2 className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <CardTitle>Welcome to incorporate.run</CardTitle>
+            <CardTitle>Welcome to corporation.run</CardTitle>
             <CardDescription>
               Let's get started by creating your first company
             </CardDescription>

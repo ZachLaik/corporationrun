@@ -22,7 +22,7 @@ export function setupAuth(app: Express, storage: IStorage) {
   
   const demoUser = {
     id: "demo-user-123",
-    email: "demo@incorporate.run",
+    email: "demo@corporation.run",
     firstName: "Demo",
     lastName: "User",
     profileImageUrl: null,

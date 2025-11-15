@@ -143,10 +143,10 @@ export default function Landing() {
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-primary" />
-              <span className="font-semibold">incorporate.run</span>
+              <span className="font-semibold">corporation.run</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2025 incorporate.run. Voice-first legal OS for startups.
+              © 2025 corporation.run. Voice-first legal OS for startups.
             </p>
           </div>
         </div>

@@ -81,7 +81,7 @@ export function AppSidebar() {
             <Building2 className="h-6 w-6 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-semibold">incorporate.run</span>
+            <span className="text-base font-semibold">corporation.run</span>
             <span className="text-xs text-muted-foreground">Legal OS</span>
           </div>
         </div>

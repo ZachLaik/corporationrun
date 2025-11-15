@@ -145,7 +145,7 @@ Please generate a complete, professional document.`;
     companyContext: string,
     relevantDocs: string[]
   ): Promise<string> {
-    const systemPrompt = `You are a helpful AI legal assistant for incorporate.run, a voice-first legal OS for startups. 
+    const systemPrompt = `You are a helpful AI legal assistant for corporation.run, a voice-first legal OS for startups. 
 You help founders understand their company, documents, and legal requirements. Be friendly, concise, and accurate.
 Always cite which documents or information you're referencing.`;
 

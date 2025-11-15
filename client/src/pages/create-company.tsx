@@ -97,19 +97,60 @@ export default function CreateCompany() {
     console.log("Form validation failed:", errors);
   };
 
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
-    utterance.lang = 'en-US';
-    
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    
-    window.speechSynthesis.speak(utterance);
+  const speakText = async (text: string) => {
+    try {
+      setIsSpeaking(true);
+      
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Speech generation failed' }));
+        console.error('TTS request failed:', response.status, error);
+        setIsSpeaking(false);
+        toast({
+          title: "Voice response unavailable",
+          description: error.message || "Unable to generate voice response. Please read the message.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.onerror = () => {
+        console.error('Audio playback error');
+        setIsSpeaking(false);
+        URL.revokeObjectURL(audioUrl);
+        toast({
+          title: "Audio playback failed",
+          description: "Unable to play voice response.",
+          variant: "destructive",
+        });
+      };
+      
+      await audio.play();
+    } catch (error) {
+      console.error('ElevenLabs TTS error:', error);
+      setIsSpeaking(false);
+      toast({
+        title: "Voice error",
+        description: "An unexpected error occurred with voice responses.",
+        variant: "destructive",
+      });
+    }
   };
 
   const startListening = (currentRetry: number) => {
@@ -151,43 +192,38 @@ export default function CreateCompany() {
       setConversation(finalTranscript.trim());
       setIsListening(false);
       
-      // Extract company data using AI
+      // Extract and auto-create all entities using AI
       try {
-        const response: ExtractCompanyResponse = await apiRequest("POST", "/api/chat/extract-company", {
-          conversation: transcript
+        const response: any = await apiRequest("POST", "/api/chat/extract-entities", {
+          conversation: finalTranscript.trim()
         });
         
-        if (response && response.name) {
-          // Success! Prefill form and auto-submit
-          form.setValue("name", response.name);
-          form.setValue("description", response.description ?? "");
-          form.setValue("jurisdiction", response.jurisdiction ?? "delaware");
+        if (response && response.success) {
+          const { company, founders, investors } = response;
+          const jurisdictionName = company.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS';
+          const founderCount = founders.length;
+          const investorCount = investors.length;
           
-          const jurisdictionName = response.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS';
-          speakText(`Perfect! I'm creating ${response.name} as a ${jurisdictionName}. Next, we'll invite your cofounders to sign the incorporation documents.`);
+          let message = `Perfect! I've created ${company.name} as a ${jurisdictionName}`;
+          if (founderCount > 0) {
+            message += ` with ${founderCount} founder${founderCount > 1 ? 's' : ''}`;
+          }
+          if (investorCount > 0) {
+            message += ` and ${investorCount} investor${investorCount > 1 ? 's' : ''}`;
+          }
+          message += `. Let's review your team next!`;
           
-          // Set flag to track voice-driven creation
-          setWasVoiceCreated(true);
+          speakText(message);
           
-          // Auto-submit the form after 2 seconds
-          setTimeout(async () => {
-            try {
-              await form.handleSubmit((data) => {
-                createMutation.mutate(data);
-              })();
-            } catch (error) {
-              console.error("Auto-submit error:", error);
-              // Fallback: show form for manual submission
-              setStep(2);
-              setUseVoiceMode(false);
-              setRetryCount(0);
-              setWasVoiceCreated(false);
-              toast({
-                title: "Please review",
-                description: "Review the details and click Create Company.",
-              });
-            }
-          }, 2000);
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ["/api/company"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/founders"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/investors"] });
+          
+          // Navigate to founders page after 3 seconds
+          setTimeout(() => {
+            setLocation("/founders");
+          }, 3000);
         } else {
           // Extraction failed, retry if we have attempts left
           const newRetryCount = currentRetry + 1;

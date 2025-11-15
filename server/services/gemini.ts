@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type, SchemaType } from "@google/genai";
-import pRetry from "p-retry";
+import { GoogleGenAI, Type } from "@google/genai";
+import pRetry, { AbortError } from "p-retry";
 
 // Referenced from Gemini AI Integrations blueprint
 // This is using Replit's AI Integrations service, which provides Gemini-compatible API access without requiring your own Gemini API key.
@@ -68,7 +68,7 @@ class GeminiService {
         ? `\n\nRelevant context:\n${relevantDocs.join('\n\n')}`
         : '';
 
-      const prompt = `You are an elite startup lawyer AI assistant for incorporate.run.
+      const prompt = `You are an elite startup lawyer AI assistant for corporation.run.
 
 ${companyContext}
 
@@ -88,7 +88,7 @@ Provide helpful, accurate legal guidance specific to the user's jurisdiction. Be
             if (this.isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(error);
+            throw new AbortError(error);
           }
         },
         {
@@ -137,7 +137,7 @@ Draft a complete, professional ${type} document tailored to this jurisdiction. I
             if (this.isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(error);
+            throw new AbortError(error);
           }
         },
         {
@@ -206,7 +206,7 @@ Respond in JSON format with:
             if (this.isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(error);
+            throw new AbortError(error);
           }
         },
         {
@@ -271,7 +271,7 @@ If jurisdiction is not clear, default to Delaware. Return JSON with exact fields
             if (this.isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(error);
+            throw new AbortError(error);
           }
         },
         {
@@ -384,7 +384,7 @@ Return empty arrays if no founders or investors are mentioned.`;
             if (this.isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(error);
+            throw new AbortError(error);
           }
         },
         {

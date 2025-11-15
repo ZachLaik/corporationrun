@@ -1,8 +1,8 @@
-# incorporate.run - Voice-First Legal OS for Startups
+# corporation.run - Voice-First Legal OS for Startups
 
 ## Overview
 
-incorporate.run is a conversational AI-powered legal operating system designed to make forming and organizing a startup intuitive and delightful. The platform guides founders through the legal formation process with a voice-first interface, handling documents from drafting through validation, signing, and activation. It supports multi-jurisdiction incorporation (Delaware C-Corp and France SAS) and provides comprehensive tools for founder management, investor relations, and legal document workflows.
+corporation.run is a conversational AI-powered legal operating system designed to make forming and organizing a startup intuitive and delightful. The platform guides founders through the legal formation process with a voice-first interface, handling documents from drafting through validation, signing, and activation. It supports multi-jurisdiction incorporation (Delaware C-Corp and France SAS) and provides comprehensive tools for founder management, investor relations, and legal document workflows.
 
 ## User Preferences
 
@@ -93,7 +93,7 @@ The system uses a relational database schema with the following core entities:
 
 **Authentication:**
 - **Replit Auth**: OAuth/OIDC-based authentication
-- Demo mode fallback for development (creates demo@incorporate.run user)
+- Demo mode fallback for development (creates demo@corporation.run user)
 - Session-based authentication with secure HTTP-only cookies
 
 **Development Tools:**

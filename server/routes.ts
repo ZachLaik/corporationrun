@@ -5,6 +5,7 @@ import { requireAuth } from "./replitAuth";
 import { insertCompanySchema, insertFounderSchema, insertInvestorSchema, insertDocumentSchema, insertTaskSchema, insertDocumentSignatureSchema, insertCapTableEntrySchema } from "@shared/schema";
 import { qdrantService } from "./services/qdrant";
 import { geminiService } from "./services/gemini";
+import { elevenLabsService } from "./services/elevenlabs";
 import { emailService } from "./services/email";
 
 // Helper to get authenticated user
@@ -591,6 +592,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(companyData);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/chat/extract-entities", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { conversation } = req.body;
+      
+      if (!conversation || typeof conversation !== 'string') {
+        return res.status(400).json({ message: "Valid conversation string is required" });
+      }
+      
+      const userId = req.user!.id;
+      
+      const existingCompany = await storage.getCompanyByUserId(userId);
+      if (existingCompany) {
+        return res.status(400).json({ 
+          message: "You already have a company. Please use the existing company or delete it first." 
+        });
+      }
+      
+      const extractedData = await geminiService.extractEntities(conversation);
+      
+      if (!extractedData) {
+        return res.status(502).json({ message: "AI service failed to extract entities from conversation. Please try again." });
+      }
+      
+      if (!extractedData.company?.name) {
+        return res.status(400).json({ message: "Could not extract company name from conversation. Please provide more details." });
+      }
+      
+      const founders = extractedData.founders || [];
+      const investors = extractedData.investors || [];
+      
+      const companySchema = insertCompanySchema.pick({ name: true, description: true, jurisdiction: true });
+      const companyResult = companySchema.safeParse({
+        name: extractedData.company.name,
+        description: extractedData.company.description || "",
+        jurisdiction: extractedData.company.jurisdiction || 'delaware',
+      });
+      
+      if (!companyResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid company data extracted",
+          errors: companyResult.error.errors 
+        });
+      }
+      
+      for (const f of founders) {
+        if (!f.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) {
+          return res.status(400).json({ 
+            message: `Invalid founder email: ${f.email || 'missing'}` 
+          });
+        }
+      }
+      
+      for (const inv of investors) {
+        if (!inv.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inv.email)) {
+          return res.status(400).json({ 
+            message: `Invalid investor email: ${inv.email || 'missing'}` 
+          });
+        }
+        if (typeof inv.amount !== 'number' || inv.amount < 0) {
+          return res.status(400).json({ 
+            message: `Invalid investment amount for ${inv.name}` 
+          });
+        }
+      }
+      
+      const result = await storage.createCompanyWithRelations({
+        company: {
+          userId,
+          ...companyResult.data,
+        },
+        founders: founders.map(f => ({
+          email: f.email,
+          firstName: f.firstName || '',
+          lastName: f.lastName || '',
+          role: f.role || 'Co-Founder',
+          equityPercentage: f.equityPercentage || 0,
+          status: 'invited' as const,
+        })),
+        investors: investors.map(inv => ({
+          name: inv.name,
+          email: inv.email,
+          amount: inv.amount || 0,
+          status: 'pending' as const,
+        })),
+      });
+      
+      res.json({
+        success: true,
+        company: result.company,
+        founders: result.founders,
+        investors: result.investors,
+        message: `Created ${result.company.name} with ${result.founders.length} founder(s) and ${result.investors.length} investor(s)`,
+      });
+    } catch (error: any) {
+      console.error("Extract entities error:", error);
+      const message = error?.message || "Failed to create company and entities";
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Validation error", details: error.errors });
+      }
+      
+      res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/tts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ message: "Valid text string is required" });
+      }
+      
+      const isAvailable = await elevenLabsService.isAvailable();
+      if (!isAvailable) {
+        return res.status(503).json({ message: "Text-to-speech service is not configured or unavailable" });
+      }
+      
+      const audioBuffer = await elevenLabsService.textToSpeech(text);
+      
+      if (!audioBuffer) {
+        return res.status(502).json({ message: "Failed to generate speech audio. Please try again." });
+      }
+      
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', audioBuffer.length.toString());
+      res.send(audioBuffer);
+    } catch (error: any) {
+      console.error("TTS error:", error);
+      const message = error?.message || "Speech generation failed";
+      res.status(500).json({ message });
     }
   });
 

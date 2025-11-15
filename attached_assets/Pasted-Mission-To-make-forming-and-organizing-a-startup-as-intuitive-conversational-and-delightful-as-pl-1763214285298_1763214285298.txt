@@ -467,7 +467,7 @@ Impossible to get lost because each document’s flow is consistent and self-con
 
 ⭐ 8. TL;DR (the elevator pitch for the product)
 
-incorporate.run is a voice-first legal OS where each legal document is handled by a specialized AI agent.
+corporation.run is a voice-first legal OS where each legal document is handled by a specialized AI agent.
 Users create a startup, then freely navigate contract templates, investor setup, and incorporation packs.
 Each document flows through Draft → Validate → Sign → Activate → Remember.
 Signatures are done by email; signed documents become part of the company memory.

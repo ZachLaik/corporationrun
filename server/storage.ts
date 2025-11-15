@@ -40,6 +40,15 @@ export interface IStorage {
   getCompanyByUserId(userId: string): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: string, data: Partial<InsertCompany>): Promise<Company>;
+  createCompanyWithRelations(data: {
+    company: InsertCompany;
+    founders: Omit<InsertFounder, 'companyId'>[];
+    investors: Omit<InsertInvestor, 'companyId'>[];
+  }): Promise<{
+    company: Company;
+    founders: Founder[];
+    investors: Investor[];
+  }>;
 
   // Founder operations
   getFoundersByCompanyId(companyId: string): Promise<Founder[]>;
@@ -121,6 +130,44 @@ export class DatabaseStorage implements IStorage {
       .where(eq(companies.id, id))
       .returning();
     return company;
+  }
+
+  async createCompanyWithRelations(data: {
+    company: InsertCompany;
+    founders: Omit<InsertFounder, 'companyId'>[];
+    investors: Omit<InsertInvestor, 'companyId'>[];
+  }): Promise<{
+    company: Company;
+    founders: Founder[];
+    investors: Investor[];
+  }> {
+    return await db.transaction(async (tx) => {
+      const [company] = await tx.insert(companies).values(data.company).returning();
+
+      const createdFounders: Founder[] = [];
+      for (const founderData of data.founders) {
+        const [founder] = await tx.insert(founders).values({
+          ...founderData,
+          companyId: company.id,
+        }).returning();
+        createdFounders.push(founder);
+      }
+
+      const createdInvestors: Investor[] = [];
+      for (const investorData of data.investors) {
+        const [investor] = await tx.insert(investors).values({
+          ...investorData,
+          companyId: company.id,
+        }).returning();
+        createdInvestors.push(investor);
+      }
+
+      return {
+        company,
+        founders: createdFounders,
+        investors: createdInvestors,
+      };
+    });
   }
 
   // Founder operations

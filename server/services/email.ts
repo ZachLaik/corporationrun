@@ -16,7 +16,7 @@ function getResend(): Resend | null {
 }
 
 export class EmailService {
-  private fromEmail = 'incorporate.run <onboarding@resend.dev>'; // Update with your verified domain
+  private fromEmail = 'corporation.run <onboarding@resend.dev>'; // Update with your verified domain
 
   // Check if service is available
   private isAvailable(): boolean {
@@ -77,7 +77,7 @@ export class EmailService {
           
           <div style="text-align: center; margin-top: 20px;">
             <p style="font-size: 12px; color: #9ca3af;">
-              Powered by <strong style="color: #2563eb;">incorporate.run</strong>
+              Powered by <strong style="color: #2563eb;">corporation.run</strong>
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@ export class EmailService {
             <p style="font-size: 16px; color: #1f2937; margin-top: 0;">Hi ${recipientName},</p>
             
             <p style="font-size: 16px; color: #1f2937; line-height: 1.6;">
-              <strong>${inviterName}</strong> has added you as a founder of <strong>${companyName}</strong> on incorporate.run.
+              <strong>${inviterName}</strong> has added you as a founder of <strong>${companyName}</strong> on corporation.run.
             </p>
             
             <p style="font-size: 16px; color: #1f2937; line-height: 1.6;">
@@ -133,7 +133,7 @@ export class EmailService {
           
           <div style="text-align: center; margin-top: 20px;">
             <p style="font-size: 12px; color: #9ca3af;">
-              Powered by <strong style="color: #2563eb;">incorporate.run</strong>
+              Powered by <strong style="color: #2563eb;">corporation.run</strong>
             </p>
           </div>
         </div>

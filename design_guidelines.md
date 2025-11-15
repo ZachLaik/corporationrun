@@ -1,4 +1,4 @@
-# Design Guidelines: incorporate.run Legal OS
+# Design Guidelines: corporation.run Legal OS
 
 ## Design Approach
 
