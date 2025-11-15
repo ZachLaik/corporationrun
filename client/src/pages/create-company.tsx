@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,7 +12,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Building2, Flag } from "lucide-react";
+import { Building2, Flag, Mic, Volume2, VolumeX, Sparkles } from "lucide-react";
 import { insertCompanySchema } from "@shared/schema";
 
 const formSchema = insertCompanySchema.extend({
@@ -23,7 +24,15 @@ type FormData = z.infer<typeof formSchema>;
 export default function CreateCompany() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [step, setStep] = useState(1);
+  const [useVoiceMode, setUseVoiceMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [conversation, setConversation] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  const recognitionRef = useRef<any>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,7 +53,7 @@ export default function CreateCompany() {
         title: "Success!",
         description: "Your company has been created successfully.",
       });
-      window.location.href = "/dashboard";
+      setLocation("/dashboard");
     },
     onError: (error: Error) => {
       toast({
@@ -58,6 +67,161 @@ export default function CreateCompany() {
   const onSubmit = (data: FormData) => {
     createMutation.mutate(data);
   };
+
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.lang = 'en-US';
+    
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startListening = (currentRetry: number) => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    // Create fresh recognition instance for each attempt
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setConversation(transcript);
+      setIsListening(false);
+      
+      // Extract company data using AI
+      try {
+        const response = await apiRequest("POST", "/api/chat/extract-company", {
+          conversation: transcript
+        });
+        
+        if (response && response.name) {
+          // Success! Prefill form
+          form.setValue("name", response.name);
+          form.setValue("description", response.description || "");
+          form.setValue("jurisdiction", response.jurisdiction || "delaware");
+          
+          speakText(`Great! I've set up ${response.name} as a ${response.jurisdiction === 'delaware' ? 'Delaware C-Corp' : 'France SAS'}. Let me show you the details.`);
+          
+          setTimeout(() => {
+            setStep(2);
+            setUseVoiceMode(false);
+            setRetryCount(0);
+          }, 3000);
+        } else {
+          // Extraction failed, retry if we have attempts left
+          const newRetryCount = currentRetry + 1;
+          if (newRetryCount < MAX_RETRIES) {
+            setRetryCount(newRetryCount);
+            speakText(`I didn't catch all that. Try ${newRetryCount}: Please tell me your company name and whether Delaware or France.`);
+            
+            setTimeout(() => {
+              startListening(newRetryCount);
+            }, 4000);
+          } else {
+            speakText("I'm having trouble understanding. Let's use the form instead.");
+            setTimeout(() => {
+              setUseVoiceMode(false);
+              setRetryCount(0);
+              toast({
+                title: "Voice mode ended",
+                description: "Please fill out the form manually.",
+              });
+            }, 3000);
+          }
+        }
+      } catch (error) {
+        console.error("Voice extraction error:", error);
+        speakText("Sorry, I had trouble processing that. Let's use the form instead.");
+        
+        setTimeout(() => {
+          setUseVoiceMode(false);
+          setRetryCount(0);
+          toast({
+            title: "Voice mode ended",
+            description: "Please use the form to continue.",
+            variant: "destructive",
+          });
+        }, 3000);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      
+      // Handle errors based on type and retry count
+      if (event.error === 'no-speech' && currentRetry < MAX_RETRIES) {
+        speakText("I didn't hear anything. Let me try again.");
+        setTimeout(() => {
+          startListening(currentRetry + 1);
+        }, 2000);
+      } else {
+        speakText("Sorry, voice input isn't working. Please use the form.");
+        setTimeout(() => {
+          setUseVoiceMode(false);
+          setRetryCount(0);
+        }, 2000);
+      }
+    };
+
+    recognition.onend = () => setIsListening(false);
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error("Failed to start recognition:", error);
+      setUseVoiceMode(false);
+      setRetryCount(0);
+      toast({
+        title: "Voice input failed",
+        description: "Please use the form instead.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const startVoiceConversation = () => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      toast({
+        title: "Not supported",
+        description: "Voice input is not supported in your browser.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUseVoiceMode(true);
+    setRetryCount(0);
+    
+    speakText("Hi! I'm your AI legal assistant. Let's create your company together. Tell me about your company. What's the name, what does it do, and are you based in Delaware or France?");
+    
+    setTimeout(() => {
+      startListening(0);
+    }, 5000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const jurisdictionData = {
     delaware: {
@@ -80,26 +244,80 @@ export default function CreateCompany() {
     <div className="flex-1 flex items-center justify-center p-8">
       <Card className="w-full max-w-3xl">
         <CardHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
-              <Building2 className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
+                <Building2 className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-section">Create Your Company</CardTitle>
+                <CardDescription>
+                  {useVoiceMode 
+                    ? "Speak naturally - I'll fill out the form for you" 
+                    : step === 1 ? "Choose your jurisdiction" : "Enter company details"
+                  }
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-section">Create Your Company</CardTitle>
-              <CardDescription>
-                {step === 1 ? "Choose your jurisdiction" : "Enter company details"}
-              </CardDescription>
-            </div>
+            {step === 1 && !useVoiceMode && (
+              <Button
+                onClick={startVoiceConversation}
+                variant="outline"
+                size="lg"
+                disabled={isListening || isSpeaking}
+                data-testid="button-voice-mode"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Use Voice
+              </Button>
+            )}
           </div>
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2">
             <div className={`h-2 flex-1 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-muted'}`} />
             <div className={`h-2 flex-1 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
           </div>
         </CardHeader>
         <CardContent>
+          {useVoiceMode && (
+            <div className="mb-6 p-8 text-center space-y-4 border-2 border-dashed border-primary rounded-lg bg-primary/5">
+              <div className="flex justify-center">
+                <div className={`h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center ${isListening ? 'animate-pulse ring-4 ring-primary/50' : ''}`}>
+                  {isListening ? (
+                    <Mic className="h-10 w-10 text-primary animate-pulse" />
+                  ) : isSpeaking ? (
+                    <Volume2 className="h-10 w-10 text-primary animate-pulse" />
+                  ) : (
+                    <Sparkles className="h-10 w-10 text-primary" />
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-lg font-semibold">
+                  {isListening ? "I'm listening..." : isSpeaking ? "Speaking..." : "Voice Mode Active"}
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {conversation || "Waiting for your response..."}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setUseVoiceMode(false);
+                  window.speechSynthesis.cancel();
+                  if (recognitionRef.current) {
+                    recognitionRef.current.stop();
+                  }
+                }}
+                data-testid="button-cancel-voice"
+              >
+                Cancel Voice Mode
+              </Button>
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {step === 1 && (
+              {step === 1 && !useVoiceMode && (
                 <FormField
                   control={form.control}
                   name="jurisdiction"
