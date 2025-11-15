@@ -131,10 +131,9 @@ export default function CreateCompany() {
       
       // Extract company data using AI
       try {
-        const res = await apiRequest("POST", "/api/chat/extract-company", {
+        const response: ExtractCompanyResponse = await apiRequest("POST", "/api/chat/extract-company", {
           conversation: transcript
         });
-        const response: ExtractCompanyResponse = await res.json();
         
         if (response && response.name) {
           // Success! Prefill form and auto-submit

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -18,9 +19,16 @@ import { insertFounderSchema } from "@shared/schema";
 import { z } from "zod";
 import type { Founder } from "@shared/schema";
 
-const formSchema = insertFounderSchema.extend({
+const formSchema = insertFounderSchema.omit({
+  companyId: true, // Backend adds companyId automatically
+  status: true, // Backend sets status to 'invited'
+  idUploaded: true, // Not needed for creation
+}).extend({
   email: z.string().email("Invalid email address"),
   equityPercentage: z.coerce.number().min(0).max(100).optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  role: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -28,6 +36,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function FoundersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -39,11 +48,11 @@ export default function FoundersPage() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        setLocation("/api/login");
       }, 500);
       return;
     }
-  }, [isAuthenticated, authLoading, toast]);
+  }, [isAuthenticated, authLoading, toast, setLocation]);
 
   const { data: founders = [], isLoading } = useQuery<Founder[]>({
     queryKey: ["/api/founders"],
@@ -54,10 +63,10 @@ export default function FoundersPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      firstName: "",
-      lastName: "",
-      role: "",
-      equityPercentage: undefined,
+      firstName: "" as string | undefined,
+      lastName: "" as string | undefined,
+      role: "" as string | undefined,
+      equityPercentage: "" as any, // Will be coerced to number or undefined
     },
   });
 
@@ -82,7 +91,7 @@ export default function FoundersPage() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          setLocation("/api/login");
         }, 500);
         return;
       }
@@ -95,6 +104,8 @@ export default function FoundersPage() {
   });
 
   const onSubmit = (data: FormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
     createMutation.mutate(data);
   };
 
@@ -134,7 +145,7 @@ export default function FoundersPage() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="founder@example.com" {...field} data-testid="input-founder-email" />
+                        <Input placeholder="founder@example.com" {...field} value={field.value || ""} data-testid="input-founder-email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -188,7 +199,7 @@ export default function FoundersPage() {
                     <FormItem>
                       <FormLabel>Equity Percentage</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="25" {...field} data-testid="input-founder-equity" />
+                        <Input type="number" placeholder="25" {...field} value={field.value ?? ""} data-testid="input-founder-equity" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -18,9 +19,13 @@ import { insertInvestorSchema } from "@shared/schema";
 import { z } from "zod";
 import type { Investor } from "@shared/schema";
 
-const formSchema = insertInvestorSchema.extend({
+const formSchema = insertInvestorSchema.omit({
+  companyId: true, // Backend adds companyId automatically
+  status: true, // Backend sets status
+}).extend({
   email: z.string().email("Invalid email address"),
-  amount: z.coerce.number().min(1, "Amount must be greater than 0").optional(),
+  name: z.string().min(1, "Name is required"),
+  amount: z.coerce.number().min(1, "Amount must be greater than 0"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -28,6 +33,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function InvestorsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -39,11 +45,11 @@ export default function InvestorsPage() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        setLocation("/api/login");
       }, 500);
       return;
     }
-  }, [isAuthenticated, authLoading, toast]);
+  }, [isAuthenticated, authLoading, toast, setLocation]);
 
   const { data: investors = [], isLoading } = useQuery<Investor[]>({
     queryKey: ["/api/investors"],
@@ -55,7 +61,7 @@ export default function InvestorsPage() {
     defaultValues: {
       email: "",
       name: "",
-      amount: undefined,
+      amount: "" as any, // Will be coerced to number
     },
   });
 
@@ -80,7 +86,7 @@ export default function InvestorsPage() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          setLocation("/api/login");
         }, 500);
         return;
       }
@@ -93,6 +99,8 @@ export default function InvestorsPage() {
   });
 
   const onSubmit = (data: FormData) => {
+    console.log("Form submitted with data:", data);
+    console.log("Form errors:", form.formState.errors);
     createMutation.mutate(data);
   };
 
@@ -134,7 +142,7 @@ export default function InvestorsPage() {
                     <FormItem>
                       <FormLabel>Investor Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Jane Investor" {...field} data-testid="input-investor-name" />
+                        <Input placeholder="Jane Investor" {...field} value={field.value || ""} data-testid="input-investor-name" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -147,7 +155,7 @@ export default function InvestorsPage() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="investor@example.com" {...field} data-testid="input-investor-email" />
+                        <Input placeholder="investor@example.com" {...field} value={field.value || ""} data-testid="input-investor-email" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -160,7 +168,7 @@ export default function InvestorsPage() {
                     <FormItem>
                       <FormLabel>Investment Amount ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="50000" {...field} data-testid="input-investor-amount" />
+                        <Input type="number" placeholder="50000" {...field} value={field.value ?? ""} data-testid="input-investor-amount" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
